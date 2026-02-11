@@ -107,6 +107,8 @@
 </div>
 
 <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyZ5f_ocdt06VgbqceOt1Bl6izCVobGBtKvlqodG2s7sia-caIIQaW6M6U1zwSqxEfBjw/exec";
+
     const descP = ["Casquette", "1er rang", "Tablette", "Moins contrat", "Foot A/B", "Chaise confort", "Bureau maître", "A côté ami", "Pyjama", "Stylo couleur", "Craie récré", "Chanson", "Dessin table", "Dessin porte"];
     const descT = ["Crayon flex", "Crayon ArcEnCiel", "Feuilles gratter", "Gomme animal", "Capsule Kawaii", "Squishy", "Déco crayon", "Scotch déco", "3 Stickers", "3 Billes"];
 
@@ -127,7 +129,32 @@
         return total - (student.pointsUsed || 0);
     }
 
-    function saveData() { localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); }
+    // Sauvegarde locale + Drive
+    async function saveData(syncToDrive = true) { 
+        localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); 
+        if (syncToDrive) {
+            try {
+                await fetch(GAS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(classData)
+                });
+            } catch (e) { console.error("Erreur Drive"); }
+        }
+    }
+
+    // Chargement automatique au démarrage
+    async function loadFromDrive() {
+        try {
+            const response = await fetch(GAS_URL, { method: 'GET', redirect: 'follow' });
+            const data = await response.json();
+            if (data && Array.isArray(data) && data.length > 0) {
+                classData = data;
+                saveData(false); 
+                fullRender();
+            }
+        } catch (e) { console.log("Données Drive en attente ou inexistantes."); }
+    }
 
     function addStudent() {
         const input = document.getElementById('newName');
@@ -189,7 +216,6 @@
         let next = (current + 1) % 3;
         classData[sIdx].rewards[rCode] = next;
         
-        // Mise à jour visuelle locale sans fermer l'accordéon
         element.classList.remove('target', 'done');
         let icon = "";
         if (next === 1) { element.classList.add('target'); icon = "⏳"; }
@@ -207,7 +233,6 @@
     }
 
     function fullRender() {
-        // On mémorise quel accordéon était ouvert avant le rendu
         const openPanel = Array.from(document.querySelectorAll('.reward-panel'))
                                .find(p => p.style.display === 'block');
         const openId = openPanel ? openPanel.id : null;
@@ -262,10 +287,7 @@
 
     function exportData() {
         const now = new Date();
-        const dateStr = now.getFullYear() + 
-                        String(now.getMonth() + 1).padStart(2, '0') + 
-                        String(now.getDate()).padStart(2, '0');
-        
+        const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
         const fileName = `couleurs_comportement_${dateStr}.json`;
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([JSON.stringify(classData)], {type: 'application/json'}));
@@ -279,7 +301,9 @@
         reader.readAsText(event.target.files[0]);
     }
     
+    // Au lancement : On affiche puis on essaie de synchroniser avec le Drive
     fullRender();
+    loadFromDrive();
 </script>
 </body>
 </html>
