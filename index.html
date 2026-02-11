@@ -54,10 +54,11 @@
 
         th.week-col { font-size: 9px; background: #ddd; }
         
-        .c-V { background-color: var(--v) !important; color: white !important; }
-        .c-J { background-color: var(--j) !important; color: black !important; }
-        .c-O { background-color: var(--o) !important; color: white !important; }
-        .c-R { background-color: var(--r) !important; color: white !important; }
+        /* Correspondance Couleurs - Valeurs */
+        .c-5 { background-color: var(--v) !important; color: white !important; }
+        .c-3 { background-color: var(--j) !important; color: black !important; }
+        .c-2 { background-color: var(--o) !important; color: white !important; }
+        .c-1 { background-color: var(--r) !important; color: white !important; }
         .c-none { background-color: #fff; color: transparent; }
 
         .reward-panel { display: none; background: #fff; padding: 10px; border: 2px solid #2980b9; border-top: none; }
@@ -124,8 +125,10 @@
 
     let classData = JSON.parse(localStorage.getItem('classData36_vFinal')) || [];
     let isLocked = false;
-    const pointsMap = { 'V': 5, 'J': 3, 'O': 2, 'R': 1, '': 0 };
-    const cycle = ['', 'V', 'J', 'O', 'R'];
+    
+    // Mise à jour de la correspondance et du cycle avec des chiffres
+    const pointsMap = { '5': 5, '3': 3, '2': 2, '1': 1, '': 0 };
+    const cycle = ['', '5', '3', '2', '1'];
     let draggedIndex = null;
 
     const headerRow = document.getElementById('headerRow');
@@ -152,7 +155,7 @@
     }
 
     function getNetScore(student) {
-        const total = student.weeks.reduce((sum, v) => sum + pointsMap[v], 0);
+        const total = student.weeks.reduce((sum, v) => sum + (pointsMap[v] || 0), 0);
         return total - (student.pointsUsed || 0);
     }
 
@@ -185,7 +188,7 @@
         modal.style.display = 'flex';
         confirmBtn.focus();
         confirmBtn.onclick = function() {
-            const totalAccumule = student.weeks.reduce((sum, v) => sum + pointsMap[v], 0);
+            const totalAccumule = student.weeks.reduce((sum, v) => sum + (pointsMap[v] || 0), 0);
             student.pointsUsed = totalAccumule;
             saveData(); closeModal(); fullRender();
         };
@@ -230,7 +233,15 @@
         if(isLocked) return;
         const student = classData[sIdx];
         const oldScore = getNetScore(student);
-        let currentIdx = cycle.indexOf(student.weeks[wIdx]);
+        
+        // Compatibilité avec les anciennes données V, J, O, R si elles existent encore
+        let currentVal = student.weeks[wIdx];
+        if(currentVal === 'V') currentVal = '5';
+        if(currentVal === 'J') currentVal = '3';
+        if(currentVal === 'O') currentVal = '2';
+        if(currentVal === 'R') currentVal = '1';
+
+        let currentIdx = cycle.indexOf(currentVal);
         student.weeks[wIdx] = cycle[(currentIdx + 1) % cycle.length];
         const newScore = getNetScore(student);
 
@@ -291,9 +302,16 @@
             
             student.weeks.forEach((wVal, wIdx) => {
                 const isWinMarker = student.winWeeks && student.winWeeks.includes(wIdx);
+                // On s'assure d'afficher les chiffres même si les anciennes données sont des lettres
+                let displayVal = wVal;
+                if(wVal === 'V') displayVal = '5';
+                if(wVal === 'J') displayVal = '3';
+                if(wVal === 'O') displayVal = '2';
+                if(wVal === 'R') displayVal = '1';
+
                 html += `<td class="col-week ${isWinMarker ? 'win-cell' : ''}">
-                    <button onclick="cycleWeek(${sIdx}, ${wIdx})" class="btn-cycle ${wVal ? 'c-' + wVal : 'c-none'}">
-                        ${wVal || ''}
+                    <button onclick="cycleWeek(${sIdx}, ${wIdx})" class="btn-cycle ${displayVal ? 'c-' + displayVal : 'c-none'}">
+                        ${displayVal || ''}
                     </button>
                 </td>`;
             });
