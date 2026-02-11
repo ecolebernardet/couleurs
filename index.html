@@ -18,11 +18,14 @@
         th, td { border: 1px solid #ddd; padding: 1px; text-align: center; overflow: hidden; white-space: nowrap; transition: background 0.2s; }
         
         .col-del { width: 3%; }
-        .col-name { width: 10.2%; text-align: left; padding-left: 5px; cursor: pointer; color: #2980b9; font-weight: bold; }
+        .col-name { width: 10.2%; text-align: left; padding-left: 5px; cursor: move; color: #2980b9; font-weight: bold; }
         .col-pts { width: 4%; font-weight: bold; background: #f0f0f0; cursor: pointer; }
         .col-pts:hover { background: var(--win); color: white; }
         
-        /* Styles de Victoire (Score >= 12) */
+        /* Drag & Drop Visual */
+        tr.dragging { opacity: 0.5; background: #e0e0e0; }
+        tr.drag-over { border-top: 3px solid var(--win); }
+
         .winner-name { 
             background-color: #fdf2ab !important; 
             color: #d35400 !important; 
@@ -50,7 +53,6 @@
         .c-R { background-color: var(--r) !important; color: white !important; }
         .c-none { background-color: #fff; color: transparent; }
 
-        /* Accordéon */
         .reward-panel { display: none; background: #fff; padding: 10px; border: 2px solid #2980b9; border-top: none; }
         .reward-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 5px; margin-bottom: 10px; }
         .row-title { font-weight: bold; border-bottom: 1px solid #eee; margin-bottom: 5px; grid-column: 1 / -1; font-size: 12px; }
@@ -86,7 +88,7 @@
         <thead>
             <tr id="headerRow">
                 <th class="col-del"></th>
-                <th class="col-name">Élève</th>
+                <th class="col-name">Élève (glisser)</th>
                 <th class="col-pts">Score</th>
             </tr>
         </thead>
@@ -107,14 +109,13 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyZ5f_ocdt06VgbqceOt1Bl6izCVobGBtKvlqodG2s7sia-caIIQaW6M6U1zwSqxEfBjw/exec";
-
     const descP = ["Casquette", "1er rang", "Tablette", "Moins contrat", "Foot A/B", "Chaise confort", "Bureau maître", "A côté ami", "Pyjama", "Stylo couleur", "Craie récré", "Chanson", "Dessin table", "Dessin porte"];
     const descT = ["Crayon flex", "Crayon ArcEnCiel", "Feuilles gratter", "Gomme animal", "Capsule Kawaii", "Squishy", "Déco crayon", "Scotch déco", "3 Stickers", "3 Billes"];
 
     let classData = JSON.parse(localStorage.getItem('classData36_vFinal')) || [];
     const pointsMap = { 'V': 5, 'J': 3, 'O': 2, 'R': 1, '': 0 };
     const cycle = ['', 'V', 'J', 'O', 'R'];
+    let draggedIndex = null;
 
     const headerRow = document.getElementById('headerRow');
     for (let i = 1; i <= 36; i++) {
@@ -129,32 +130,7 @@
         return total - (student.pointsUsed || 0);
     }
 
-    // Sauvegarde locale + Drive
-    async function saveData(syncToDrive = true) { 
-        localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); 
-        if (syncToDrive) {
-            try {
-                await fetch(GAS_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify(classData)
-                });
-            } catch (e) { console.error("Erreur Drive"); }
-        }
-    }
-
-    // Chargement automatique au démarrage
-    async function loadFromDrive() {
-        try {
-            const response = await fetch(GAS_URL, { method: 'GET', redirect: 'follow' });
-            const data = await response.json();
-            if (data && Array.isArray(data) && data.length > 0) {
-                classData = data;
-                saveData(false); 
-                fullRender();
-            }
-        } catch (e) { console.log("Données Drive en attente ou inexistantes."); }
-    }
+    function saveData() { localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); }
 
     function addStudent() {
         const input = document.getElementById('newName');
@@ -188,10 +164,38 @@
 
     function closeModal() { document.getElementById('resetModal').style.display = 'none'; }
 
-    window.addEventListener('keydown', (e) => {
-        if (document.getElementById('resetModal').style.display === 'flex' && e.key === 'Enter') document.getElementById('confirmBtn').click();
-        if (document.getElementById('resetModal').style.display === 'flex' && e.key === 'Escape') closeModal();
-    });
+    // --- Gestion du Drag & Drop ---
+    function handleDragStart(e, index) {
+        draggedIndex = index;
+        e.currentTarget.classList.add('dragging');
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        const tr = e.currentTarget;
+        if (tr.classList.contains('student-row')) {
+            tr.classList.add('drag-over');
+        }
+    }
+
+    function handleDragLeave(e) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleDrop(e, targetIndex) {
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === targetIndex) {
+            fullRender();
+            return;
+        }
+        
+        // Déplacement de l'élément dans le tableau de données
+        const movedItem = classData.splice(draggedIndex, 1)[0];
+        classData.splice(targetIndex, 0, movedItem);
+        
+        saveData();
+        fullRender();
+    }
 
     function cycleWeek(sIdx, wIdx) {
         const student = classData[sIdx];
@@ -206,7 +210,6 @@
         } else if (newScore < 12) {
             student.winWeeks = student.winWeeks.filter(w => w !== wIdx);
         }
-
         saveData();
         fullRender();
     }
@@ -221,7 +224,6 @@
         if (next === 1) { element.classList.add('target'); icon = "⏳"; }
         else if (next === 2) { element.classList.add('done'); icon = "✅"; }
         element.querySelector('span').innerText = icon;
-        
         saveData();
     }
 
@@ -233,19 +235,30 @@
     }
 
     function fullRender() {
-        const openPanel = Array.from(document.querySelectorAll('.reward-panel'))
-                               .find(p => p.style.display === 'block');
+        const openPanel = Array.from(document.querySelectorAll('.reward-panel')).find(p => p.style.display === 'block');
         const openId = openPanel ? openPanel.id : null;
 
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
+        
         classData.forEach((student, sIdx) => {
             const netScore = getNetScore(student);
             const isWinner = netScore >= 12;
-            let tr = document.createElement('tr');
             
+            // Ligne principale de l'élève
+            let tr = document.createElement('tr');
+            tr.className = 'student-row';
+            tr.draggable = true;
+            
+            // Event Listeners pour le Drag & Drop
+            tr.addEventListener('dragstart', (e) => handleDragStart(e, sIdx));
+            tr.addEventListener('dragover', handleDragOver);
+            tr.addEventListener('dragleave', handleDragLeave);
+            tr.addEventListener('drop', (e) => handleDrop(e, sIdx));
+            tr.addEventListener('dragend', () => fullRender());
+
             let html = `<td class="col-del"><button class="btn-del" onclick="deleteStudent(${sIdx})">×</button></td>`;
-            html += `<td class="col-name ${isWinner ? 'winner-name' : ''}" onclick="toggleAccordion(${sIdx})">${student.name}</td>`;
+            html += `<td class="col-name ${isWinner ? 'winner-name' : ''}" onclick="toggleAccordion(${sIdx})">☰ ${student.name}</td>`;
             html += `<td class="col-pts ${isWinner ? 'winner-score' : ''}" onclick="manualReset(${sIdx})">${netScore}</td>`;
             
             student.weeks.forEach((wVal, wIdx) => {
@@ -259,6 +272,7 @@
             tr.innerHTML = html;
             tbody.appendChild(tr);
 
+            // Ligne Accordéon Récompenses
             let trAcc = document.createElement('tr');
             let pItems = "", tItems = "";
             for(let i=1; i<=14; i++) {
@@ -301,9 +315,7 @@
         reader.readAsText(event.target.files[0]);
     }
     
-    // Au lancement : On affiche puis on essaie de synchroniser avec le Drive
     fullRender();
-    loadFromDrive();
 </script>
 </body>
 </html>
