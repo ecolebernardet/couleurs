@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Suivi Classe - Complet</title>
+    <title>Couleurs du comportement - Suivi annuel</title>
     <style>
         :root {
             --v: #2ecc71; --j: #f1c40f; --o: #e67e22; --r: #e74c3c;
@@ -132,6 +132,9 @@
 </div>
 
 <script>
+    // URL de votre application web Google Apps Script
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwJTqMZdybzuFvh_cX9LmZ-1vJ-IEV7jwRjGrPu7oG19Rj4cDLmwo1frQCN6fftogN1/exec";
+
     const descP = ["Casquette", "1er rang", "Tablette", "Moins contrat", "Foot A/B", "Chaise confort", "Bureau maître", "A côté ami", "Pyjama", "Stylo couleur", "Craie récré", "Chanson", "Dessin table", "Dessin porte"];
     const descT = ["Crayon flex", "Crayon ArcEnCiel", "Feuilles à gratter", "Gomme animal", "Capsule Kawaii", "Squishy", "Déco crayon", "Scotch déco", "3 Stickers", "3 Billes"];
 
@@ -141,6 +144,19 @@
     const pointsMap = { '5': 5, '3': 3, '2': 2, '1': 1, '': 0 };
     const cycle = ['', '5', '3', '2', '1'];
     let draggedIndex = null;
+
+    // --- NOUVEAUTÉ : CHARGEMENT DEPUIS DRIVE ---
+    async function loadFromDrive() {
+        try {
+            const response = await fetch(GAS_URL, { method: 'GET', redirect: 'follow' });
+            const data = await response.json();
+            if (data && Array.isArray(data) && data.length > 0) {
+                classData = data;
+                saveData(false); // On sauve localement sans renvoyer au drive
+                fullRender();
+            }
+        } catch (e) { console.log("Données Drive en attente ou inexistantes."); }
+    }
 
     const headerRow = document.getElementById('headerRow');
     for (let i = 1; i <= 36; i++) {
@@ -163,6 +179,7 @@
             btn.classList.remove('active');
             container.classList.remove('is-locked');
         }
+        fullRender(); // Force le rafraîchissement pour les handles de drag
     }
 
     function getNetScore(student) {
@@ -170,7 +187,19 @@
         return total - (student.pointsUsed || 0);
     }
 
-    function saveData() { localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); }
+    // --- MODIFICATION : SAUVEGARDE DRIVE ---
+    async function saveData(syncToDrive = true) { 
+        localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); 
+        if (syncToDrive) {
+            try {
+                await fetch(GAS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(classData)
+                });
+            } catch (e) { console.error("Erreur de synchronisation Drive"); }
+        }
+    }
 
     function addStudent() {
         if(isLocked) return;
@@ -222,9 +251,7 @@
         }
     }
 
-    function handleDragLeave(e) {
-        e.currentTarget.classList.remove('drag-over');
-    }
+    function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
 
     function handleDrop(e, targetIndex) {
         if(isLocked) return;
@@ -243,8 +270,9 @@
         if(isLocked) return;
         const student = classData[sIdx];
         const oldScore = getNetScore(student);
-        
         let currentVal = student.weeks[wIdx];
+        
+        // Compatibilité anciennes lettres
         if(currentVal === 'V') currentVal = '5';
         if(currentVal === 'J') currentVal = '3';
         if(currentVal === 'O') currentVal = '2';
@@ -376,7 +404,9 @@
         reader.readAsText(event.target.files[0]);
     }
     
+    // Initialisation
     fullRender();
+    loadFromDrive(); // Tente de récupérer les données sur Google Drive au démarrage
 </script>
 </body>
 </html>
