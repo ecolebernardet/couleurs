@@ -133,7 +133,9 @@
 
 <script>
     // URL de votre application web Google Apps Script
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwJTqMZdybzuFvh_cX9LmZ-1vJ-IEV7jwRjGrPu7oG19Rj4cDLmwo1frQCN6fftogN1/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbw-qXbfVkaX9_ns-9C1gxoKTJvBmocj4l4RVlh0jAYFHbfBPCw-qYc-mSWOGyczbvce/exec";
+    // Nom exact du fichier sur le Drive
+    const DRIVE_FILE_NAME = "suivi_couleurs_data.json";
 
     const descP = ["Casquette", "1er rang", "Tablette", "Moins contrat", "Foot A/B", "Chaise confort", "Bureau maître", "A côté ami", "Pyjama", "Stylo couleur", "Craie récré", "Chanson", "Dessin table", "Dessin porte"];
     const descT = ["Crayon flex", "Crayon ArcEnCiel", "Feuilles à gratter", "Gomme animal", "Capsule Kawaii", "Squishy", "Déco crayon", "Scotch déco", "3 Stickers", "3 Billes"];
@@ -145,17 +147,17 @@
     const cycle = ['', '5', '3', '2', '1'];
     let draggedIndex = null;
 
-    // --- NOUVEAUTÉ : CHARGEMENT DEPUIS DRIVE ---
+    // --- CHARGEMENT DEPUIS DRIVE ---
     async function loadFromDrive() {
         try {
-            const response = await fetch(GAS_URL, { method: 'GET', redirect: 'follow' });
+            const response = await fetch(GAS_URL + "?filename=" + DRIVE_FILE_NAME, { method: 'GET', redirect: 'follow' });
             const data = await response.json();
             if (data && Array.isArray(data) && data.length > 0) {
                 classData = data;
-                saveData(false); // On sauve localement sans renvoyer au drive
+                saveData(false); 
                 fullRender();
             }
-        } catch (e) { console.log("Données Drive en attente ou inexistantes."); }
+        } catch (e) { console.log("Fichier " + DRIVE_FILE_NAME + " non trouvé ou Drive vide."); }
     }
 
     const headerRow = document.getElementById('headerRow');
@@ -179,7 +181,7 @@
             btn.classList.remove('active');
             container.classList.remove('is-locked');
         }
-        fullRender(); // Force le rafraîchissement pour les handles de drag
+        fullRender();
     }
 
     function getNetScore(student) {
@@ -187,15 +189,19 @@
         return total - (student.pointsUsed || 0);
     }
 
-    // --- MODIFICATION : SAUVEGARDE DRIVE ---
+    // --- SAUVEGARDE DRIVE ---
     async function saveData(syncToDrive = true) { 
         localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); 
         if (syncToDrive) {
             try {
+                // On envoie les données ET le nom du fichier souhaité
                 await fetch(GAS_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    body: JSON.stringify(classData)
+                    body: JSON.stringify({
+                        filename: DRIVE_FILE_NAME,
+                        data: classData
+                    })
                 });
             } catch (e) { console.error("Erreur de synchronisation Drive"); }
         }
@@ -272,7 +278,6 @@
         const oldScore = getNetScore(student);
         let currentVal = student.weeks[wIdx];
         
-        // Compatibilité anciennes lettres
         if(currentVal === 'V') currentVal = '5';
         if(currentVal === 'J') currentVal = '3';
         if(currentVal === 'O') currentVal = '2';
@@ -406,7 +411,7 @@
     
     // Initialisation
     fullRender();
-    loadFromDrive(); // Tente de récupérer les données sur Google Drive au démarrage
+    loadFromDrive();
 </script>
 </body>
 </html>
