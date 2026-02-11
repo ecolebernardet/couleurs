@@ -18,7 +18,7 @@
         th, td { border: 1px solid #ddd; padding: 1px; text-align: center; overflow: hidden; white-space: nowrap; transition: background 0.2s; }
         
         .col-del { width: 3%; }
-        .col-name { width: 10.2%; text-align: left; padding-left: 5px; cursor: move; color: #2980b9; font-weight: bold; }
+        .col-name { width: 10.2%; text-align: left; padding-left: 5px; cursor: move; font-size: 13px; color: #2980b9; font-weight: bold; }
         .col-pts { width: 4%; font-weight: bold; background: #f0f0f0; cursor: pointer; }
         .col-pts:hover { background: var(--win); color: white; }
         
@@ -32,6 +32,14 @@
         /* Drag & Drop Visual */
         tr.dragging { opacity: 0.5; background: #e0e0e0; }
         tr.drag-over { border-top: 3px solid var(--win); }
+
+		.handle {
+			color: #bdc3c7; /* Gris clair */
+			font-weight: normal;
+			margin-right: 5px;
+			font-size: 10px;
+			user-select: none; /* Empêche la sélection du texte */
+		}
 
         .winner-name { 
             background-color: #fdf2ab !important; 
@@ -88,6 +96,10 @@
     <div class="top-bar">
         <input type="text" id="newName" placeholder="Nom de l'élève" style="padding: 5px; width: 130px;" onkeypress="if(event.key === 'Enter') addStudent()">
         <button class="btn-main" onclick="addStudent()">+ Ajouter</button>
+        
+        <button class="btn-main" style="background:#3498db;" onclick="toggleAllAccordions(true)">📂 Tout ouvrir</button>
+        <button class="btn-main" style="background:#3498db;" onclick="toggleAllAccordions(false)">📁 Tout fermer</button>
+
         <button id="lockBtn" class="btn-main btn-lock" onclick="toggleLock()">🔓 Mode Édition</button>
         <div style="flex-grow: 1;"></div>
         <button style="background:#27ae60; color:white;" class="btn-main" onclick="exportData()">💾 Export JSON</button>
@@ -126,7 +138,6 @@
     let classData = JSON.parse(localStorage.getItem('classData36_vFinal')) || [];
     let isLocked = false;
     
-    // Mise à jour de la correspondance et du cycle avec des chiffres
     const pointsMap = { '5': 5, '3': 3, '2': 2, '1': 1, '': 0 };
     const cycle = ['', '5', '3', '2', '1'];
     let draggedIndex = null;
@@ -196,7 +207,6 @@
 
     function closeModal() { document.getElementById('resetModal').style.display = 'none'; }
 
-    // --- Gestion du Drag & Drop ---
     function handleDragStart(e, index) {
         if(isLocked) { e.preventDefault(); return; }
         draggedIndex = index;
@@ -234,7 +244,6 @@
         const student = classData[sIdx];
         const oldScore = getNetScore(student);
         
-        // Compatibilité avec les anciennes données V, J, O, R si elles existent encore
         let currentVal = student.weeks[wIdx];
         if(currentVal === 'V') currentVal = '5';
         if(currentVal === 'J') currentVal = '3';
@@ -276,9 +285,18 @@
         el.style.display = (current === 'block') ? 'none' : 'block';
     }
 
+    function toggleAllAccordions(open) {
+        const panels = document.querySelectorAll('.reward-panel');
+        panels.forEach(panel => {
+            panel.style.display = open ? 'block' : 'none';
+        });
+    }
+
     function fullRender() {
-        const openPanel = Array.from(document.querySelectorAll('.reward-panel')).find(p => p.style.display === 'block');
-        const openId = openPanel ? openPanel.id : null;
+        const openPanels = Array.from(document.querySelectorAll('.reward-panel'))
+                                .filter(p => p.style.display === 'block')
+                                .map(p => p.id);
+                                
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
         
@@ -297,12 +315,11 @@
             tr.addEventListener('dragend', () => fullRender());
 
             let html = `<td class="col-del"><button class="btn-del" onclick="deleteStudent(${sIdx})">×</button></td>`;
-            html += `<td class="col-name ${isWinner ? 'winner-name' : ''}" onclick="toggleAccordion(${sIdx})">${isLocked ? '' : '☰ '}${student.name}</td>`;
+            html += `<td class="col-name ${isWinner ? 'winner-name' : ''}" onclick="toggleAccordion(${sIdx})">${isLocked ? '' : '<span class="handle"> &nbsp; ☰ &nbsp;&nbsp;&nbsp;</span>'}${student.name}</td>`;
             html += `<td class="col-pts ${isWinner ? 'winner-score' : ''}" onclick="manualReset(${sIdx})">${netScore}</td>`;
             
             student.weeks.forEach((wVal, wIdx) => {
                 const isWinMarker = student.winWeeks && student.winWeeks.includes(wIdx);
-                // On s'assure d'afficher les chiffres même si les anciennes données sont des lettres
                 let displayVal = wVal;
                 if(wVal === 'V') displayVal = '5';
                 if(wVal === 'J') displayVal = '3';
@@ -335,7 +352,7 @@
             
             const currentAccId = `acc-${sIdx}`;
             trAcc.innerHTML = `<td colspan="39" style="padding:0; border:none;">
-                <div id="${currentAccId}" class="reward-panel" style="display: ${openId === currentAccId ? 'block' : 'none'}">
+                <div id="${currentAccId}" class="reward-panel" style="display: ${openPanels.includes(currentAccId) ? 'block' : 'none'}">
                     <div class="reward-row"><div class="row-title">Privilèges (P)</div>${pItems}</div>
                     <div class="reward-row"><div class="row-title">Trésors (T)</div>${tItems}</div>
                 </div>
