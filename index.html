@@ -22,6 +22,13 @@
         .col-pts { width: 4%; font-weight: bold; background: #f0f0f0; cursor: pointer; }
         .col-pts:hover { background: var(--win); color: white; }
         
+        /* Verrouillage */
+        .is-locked .btn-cycle, 
+        .is-locked .btn-del, 
+        .is-locked .col-pts,
+        .is-locked .reward-item { pointer-events: none; opacity: 0.8; }
+        .is-locked .col-name { cursor: default; }
+
         /* Drag & Drop Visual */
         tr.dragging { opacity: 0.5; background: #e0e0e0; }
         tr.drag-over { border-top: 3px solid var(--win); }
@@ -63,6 +70,8 @@
 
         .btn-del { background: none; color: #e74c3c; font-size: 14px; border: none; cursor: pointer; }
         .btn-main { background: var(--dark); color: white; border: none; border-radius: 3px; padding: 5px 8px; cursor: pointer; }
+        .btn-lock { background: #f39c12; color: white; }
+        .btn-lock.active { background: #7f8c8d; }
 
         #resetModal { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -78,6 +87,7 @@
     <div class="top-bar">
         <input type="text" id="newName" placeholder="Nom de l'élève" style="padding: 5px; width: 130px;" onkeypress="if(event.key === 'Enter') addStudent()">
         <button class="btn-main" onclick="addStudent()">+ Ajouter</button>
+        <button id="lockBtn" class="btn-main btn-lock" onclick="toggleLock()">🔓 Mode Édition</button>
         <div style="flex-grow: 1;"></div>
         <button style="background:#27ae60; color:white;" class="btn-main" onclick="exportData()">💾 Export JSON</button>
         <button style="background:#8e44ad; color:white;" class="btn-main" onclick="document.getElementById('importFile').click()">📁 Import JSON</button>
@@ -88,7 +98,7 @@
         <thead>
             <tr id="headerRow">
                 <th class="col-del"></th>
-                <th class="col-name">Élève (glisser)</th>
+                <th class="col-name">Élève</th>
                 <th class="col-pts">Score</th>
             </tr>
         </thead>
@@ -113,6 +123,7 @@
     const descT = ["Crayon flex", "Crayon ArcEnCiel", "Feuilles gratter", "Gomme animal", "Capsule Kawaii", "Squishy", "Déco crayon", "Scotch déco", "3 Stickers", "3 Billes"];
 
     let classData = JSON.parse(localStorage.getItem('classData36_vFinal')) || [];
+    let isLocked = false;
     const pointsMap = { 'V': 5, 'J': 3, 'O': 2, 'R': 1, '': 0 };
     const cycle = ['', 'V', 'J', 'O', 'R'];
     let draggedIndex = null;
@@ -125,6 +136,21 @@
         headerRow.appendChild(th);
     }
 
+    function toggleLock() {
+        isLocked = !isLocked;
+        const btn = document.getElementById('lockBtn');
+        const container = document.querySelector('.container');
+        if (isLocked) {
+            btn.innerText = "🔒 Tableau Verrouillé";
+            btn.classList.add('active');
+            container.classList.add('is-locked');
+        } else {
+            btn.innerText = "🔓 Mode Édition";
+            btn.classList.remove('active');
+            container.classList.remove('is-locked');
+        }
+    }
+
     function getNetScore(student) {
         const total = student.weeks.reduce((sum, v) => sum + pointsMap[v], 0);
         return total - (student.pointsUsed || 0);
@@ -133,6 +159,7 @@
     function saveData() { localStorage.setItem('classData36_vFinal', JSON.stringify(classData)); }
 
     function addStudent() {
+        if(isLocked) return;
         const input = document.getElementById('newName');
         const name = input.value.trim();
         if (!name) return;
@@ -142,6 +169,7 @@
     }
 
     function deleteStudent(index) {
+        if(isLocked) return;
         if(confirm(`Supprimer ${classData[index].name} ?`)) {
             classData.splice(index, 1);
             saveData(); fullRender();
@@ -149,6 +177,7 @@
     }
 
     function manualReset(index) {
+        if(isLocked) return;
         const student = classData[index];
         const modal = document.getElementById('resetModal');
         const confirmBtn = document.getElementById('confirmBtn');
@@ -166,11 +195,13 @@
 
     // --- Gestion du Drag & Drop ---
     function handleDragStart(e, index) {
+        if(isLocked) { e.preventDefault(); return; }
         draggedIndex = index;
         e.currentTarget.classList.add('dragging');
     }
 
     function handleDragOver(e) {
+        if(isLocked) return;
         e.preventDefault();
         const tr = e.currentTarget;
         if (tr.classList.contains('student-row')) {
@@ -183,21 +214,20 @@
     }
 
     function handleDrop(e, targetIndex) {
+        if(isLocked) return;
         e.preventDefault();
         if (draggedIndex === null || draggedIndex === targetIndex) {
             fullRender();
             return;
         }
-        
-        // Déplacement de l'élément dans le tableau de données
         const movedItem = classData.splice(draggedIndex, 1)[0];
         classData.splice(targetIndex, 0, movedItem);
-        
         saveData();
         fullRender();
     }
 
     function cycleWeek(sIdx, wIdx) {
+        if(isLocked) return;
         const student = classData[sIdx];
         const oldScore = getNetScore(student);
         let currentIdx = cycle.indexOf(student.weeks[wIdx]);
@@ -215,6 +245,7 @@
     }
 
     function toggleReward(sIdx, rCode, element) {
+        if(isLocked) return;
         let current = classData[sIdx].rewards[rCode] || 0;
         let next = (current + 1) % 3;
         classData[sIdx].rewards[rCode] = next;
@@ -237,7 +268,6 @@
     function fullRender() {
         const openPanel = Array.from(document.querySelectorAll('.reward-panel')).find(p => p.style.display === 'block');
         const openId = openPanel ? openPanel.id : null;
-
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
         
@@ -245,12 +275,10 @@
             const netScore = getNetScore(student);
             const isWinner = netScore >= 12;
             
-            // Ligne principale de l'élève
             let tr = document.createElement('tr');
             tr.className = 'student-row';
-            tr.draggable = true;
+            tr.draggable = !isLocked;
             
-            // Event Listeners pour le Drag & Drop
             tr.addEventListener('dragstart', (e) => handleDragStart(e, sIdx));
             tr.addEventListener('dragover', handleDragOver);
             tr.addEventListener('dragleave', handleDragLeave);
@@ -258,7 +286,7 @@
             tr.addEventListener('dragend', () => fullRender());
 
             let html = `<td class="col-del"><button class="btn-del" onclick="deleteStudent(${sIdx})">×</button></td>`;
-            html += `<td class="col-name ${isWinner ? 'winner-name' : ''}" onclick="toggleAccordion(${sIdx})">☰ ${student.name}</td>`;
+            html += `<td class="col-name ${isWinner ? 'winner-name' : ''}" onclick="toggleAccordion(${sIdx})">${isLocked ? '' : '☰ '}${student.name}</td>`;
             html += `<td class="col-pts ${isWinner ? 'winner-score' : ''}" onclick="manualReset(${sIdx})">${netScore}</td>`;
             
             student.weeks.forEach((wVal, wIdx) => {
@@ -272,7 +300,6 @@
             tr.innerHTML = html;
             tbody.appendChild(tr);
 
-            // Ligne Accordéon Récompenses
             let trAcc = document.createElement('tr');
             let pItems = "", tItems = "";
             for(let i=1; i<=14; i++) {
@@ -302,10 +329,9 @@
     function exportData() {
         const now = new Date();
         const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-        const fileName = `couleurs_comportement_${dateStr}.json`;
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([JSON.stringify(classData)], {type: 'application/json'}));
-        a.download = fileName;
+        a.download = `couleurs_comportement_${dateStr}.json`;
         a.click();
     }
 
